@@ -1,22 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/extensions/draft-IERC20Permit.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract PermitSwap {
     address public swapper;
-    address public tokenIn;
-    address public tokenOut;
 
-    constructor(address _tokenIn, address _tokenOut, address _swapper) {
-        tokenIn = _tokenIn;
-        tokenOut = _tokenOut;
+    constructor(address _swapper) {
         swapper = _swapper;
     }
 
     function permitAndSwap(
         address owner,
+        address tokenIn,
         uint256 amountIn,
         bytes memory data,
         uint256 deadline,
