@@ -1,6 +1,8 @@
-import { ethers } from "ethers";
 import { ChainId, Tachyon } from "@rathfi/tachyon";
 import * as dotenv from "dotenv";
+import { createPublicClient, createWalletClient, encodeFunctionData, Hex, http, parseSignature } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { base } from "viem/chains";
 dotenv.config({ path: "ts-example/.env" });
 
 // === CONFIG ===
@@ -24,31 +26,44 @@ const tokenAbi = [
 ];
 
 async function main() {
-  // Step 1. Setup provider and signer for signing the permit
-  const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-  const signer = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
-  const owner = await signer.getAddress();
+  // Step 1. Setup wallet client
+  const account = privateKeyToAccount(process.env.PRIVATE_KEY! as Hex);
+
+  const walletClient = createWalletClient({
+    account,
+    chain: base,
+    transport: http()
+  });
+
+  const publicClient = createPublicClient({
+    chain: base,
+    transport: http()
+  });
+
+  const owner = walletClient.account.address as `0x${string}`;
 
 
-  const token = new ethers.Contract(
-    TOKEN_IN_ADDRESS,
-    tokenAbi,
-    provider
-  );
-
-  const name = await token.name();
-  const nonce = await token.nonces(owner);
-  const chain = await provider.getNetwork();
+  const name = await publicClient.readContract({
+    abi: tokenAbi,
+    address: TOKEN_IN_ADDRESS as `0x${string}`,
+    functionName: "name",
+  });
+  const nonce = await await publicClient.readContract({
+    abi: tokenAbi,
+    address: TOKEN_IN_ADDRESS as `0x${string}`,
+    functionName: "nonces",
+    args: [owner],
+  });
 
   const amountIn = 10; // USDC has 6 decimals eg. 0.00001 U
   const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
 
   const domain = {
-    name,
-    version: "2", // hardcoded for USDC on base
-    chainId: chain.chainId,
-    verifyingContract: TOKEN_IN_ADDRESS,
-  };
+    name: name as string,
+    version: "2", // VERSION of token, retrieve from token contract
+    chainId: base.id,
+    verifyingContract: TOKEN_IN_ADDRESS as Hex,
+  } as const;
 
   const types = {
     Permit: [
@@ -67,23 +82,32 @@ async function main() {
     nonce,
     deadline,
   };
-  // Step 2. Sign the permit (this will give authorization )
-  const signature = await signer.signTypedData(domain, types, message);
-  const sig = ethers.Signature.from(signature);
-  const { v, r, s } = sig;
+
+  // Step 2. Sign the permit (this will give authorization to PERMIT_SWAP_ADDRESS to spend tokens)
+  const signature = await walletClient.signTypedData({
+    domain: domain,
+    types: types,
+    primaryType: "Permit",
+    message: message,
+  });
+
+  const { v, r, s } = parseSignature(signature);
 
   // Step 3. Encode function call data for permitAndSwap()
-  const iface = new ethers.Interface(permitSwapAbi);
-  const callData = iface.encodeFunctionData("permitAndSwap", [
-    owner,
-    TOKEN_IN_ADDRESS,
-    amountIn,
-    SWAP_DATA,
-    deadline,
-    v,
-    r,
-    s,
-  ]);
+  const callData = encodeFunctionData({
+    abi: permitSwapAbi,
+    functionName: "permitAndSwap",
+    args: [
+      owner,
+      TOKEN_IN_ADDRESS,
+      amountIn,
+      SWAP_DATA,
+      deadline,
+      v,
+      r,
+      s,
+    ],
+  })
 
   // Step 4. Initialize Tachyon
   const tachyon = new Tachyon({
