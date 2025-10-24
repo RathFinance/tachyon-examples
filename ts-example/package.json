@@ -1,0 +1,32 @@
+{
+  "name": "tachyon-permitswap-example",
+  "version": "1.0.0",
+  "description": "TypeScript example for interacting with PermitSwap contract using Tachyon SDK",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "run:send-native-token": "ts-node src/index.ts send-native-token",
+    "dev": "ts-node src/index.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@rathfi/tachyon": "^0.1.10",
+    "dotenv": "^16.3.1",
+    "viem": "^2.38.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.2.0"
+  },
+  "keywords": [
+    "tachyon",
+    "ethereum",
+    "defi",
+    "permit",
+    "swap"
+  ],
+  "author": "Tachyon Examples",
+  "license": "MIT"
+}
