@@ -13,6 +13,7 @@
   "dependencies": {
     "@rathfi/tachyon": "^0.1.10",
     "dotenv": "^16.3.1",
+    "ethers": "^6.15.0",
     "viem": "^2.38.4"
   },
   "devDependencies": {
