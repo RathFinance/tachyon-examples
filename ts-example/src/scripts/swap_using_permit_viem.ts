@@ -122,6 +122,7 @@ async function main() {
     to: PERMIT_SWAP_ADDRESS,
     value: "0", // No native value needed
     gasLimit: "1000000",
+    transactionType:'flash-blocks',
     callData,
   });
 
