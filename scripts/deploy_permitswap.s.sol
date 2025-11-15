@@ -8,7 +8,7 @@ contract DeployPermitSwap is Script {
     function run() external {
         uint256 alice_pk = vm.envUint("PK");
         vm.startBroadcast(alice_pk);
-        address swapper = 0x6352a56caadC4F1E25CD6c75970Fa768A3304e64;
+        address swapper = 0x0000000000001fF3684f28c67538d4D072C22734;
         PermitSwap permitswapcontract = new PermitSwap(swapper);
         console.log("PermitSwap deployed at:", address(permitswapcontract));
 
