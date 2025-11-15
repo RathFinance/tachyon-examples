@@ -145,7 +145,6 @@ async function executePermit2SwapWithTachyon() {
   });
   console.log("\nFetching quote from 0x API (allowance-holder)...");
   const quoteParams = new URLSearchParams(priceParams);
-  quoteParams.set("takerAddress", CONTRACTS.PERMIT_SWAP); // Set PermitSwap contract as taker
 
   const quoteResponse = await fetch(
     `https://api.0x.org/swap/allowance-holder/quote?${quoteParams.toString()}`,
