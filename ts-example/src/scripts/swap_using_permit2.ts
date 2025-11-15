@@ -87,7 +87,6 @@ async function executePermit2SwapWithTachyon() {
   const owner = account.address;
 
   console.log("Owner address:", owner);
-  console.log("Swapping USDC to WETH using Permit2 + Tachyon relay\n");
 
   // Setup tokens contract
   const sellingToken = getContract({
@@ -101,6 +100,10 @@ async function executePermit2SwapWithTachyon() {
     abi: erc20Abi,
     client: { public: publicClient, wallet: walletClient },
   });
+
+  console.log(
+    `Swapping ${sellingToken.address} to ${buyingToken.address} using Permit2 + Tachyon relay\n`
+  );
 
   // Define swap parameters
   const sellAmount = parseUnits("0.000003", 18); // 0.000003 WETH
