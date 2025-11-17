@@ -8,6 +8,7 @@ import {
   parseUnits,
   maxUint256,
   encodeFunctionData,
+  keccak256,
 } from "viem";
 import type { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -28,37 +29,67 @@ const CONTRACTS = {
   WETH: "0x4200000000000000000000000000000000000006",
   USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   PERMIT2: "0x000000000022D473030F116dDEE9F6B43aC78BA3", // Uniswap Permit2
-  PERMIT_SWAP: "0xb37db159A4B53c4a26ac4A398f4d34B51Ca9302b", // PermitSwap contract
+  RATH_EXECUTOR: "0x36b7e6e7fbbe07d3cf91203fb47cd436f65e6e97", // PermitSwap contract
 } as const;
 
-// ABI for permit2AndSwap function
-const permit2SwapAbi = [
+// ABI for rathExecutePermit2WithWitness function
+const rathExecutorAbi = [
   {
-    name: "permit2AndSwap",
     type: "function",
-    stateMutability: "nonpayable",
+    name: "rathExecutePermit2WithWitness",
     inputs: [
       {
         name: "permit",
         type: "tuple",
+        internalType: "struct ISignatureTransfer.PermitTransferFrom",
         components: [
           {
             name: "permitted",
             type: "tuple",
+            internalType: "struct ISignatureTransfer.TokenPermissions",
             components: [
-              { name: "token", type: "address" },
-              { name: "amount", type: "uint256" },
+              {
+                name: "token",
+                type: "address",
+                internalType: "address",
+              },
+              {
+                name: "amount",
+                type: "uint256",
+                internalType: "uint256",
+              },
             ],
           },
-          { name: "nonce", type: "uint256" },
-          { name: "deadline", type: "uint256" },
+          {
+            name: "nonce",
+            type: "uint256",
+            internalType: "uint256",
+          },
+          {
+            name: "deadline",
+            type: "uint256",
+            internalType: "uint256",
+          },
         ],
       },
-      { name: "signature", type: "bytes" },
-      { name: "owner", type: "address" },
-      { name: "swapData", type: "bytes" },
+      {
+        name: "from",
+        type: "address",
+        internalType: "address",
+      },
+      {
+        name: "callData",
+        type: "bytes",
+        internalType: "bytes",
+      },
+      {
+        name: "signature",
+        type: "bytes",
+        internalType: "bytes",
+      },
     ],
     outputs: [],
+    stateMutability: "payable",
   },
 ] as const;
 
@@ -164,7 +195,7 @@ async function executePermit2SwapWithTachyon() {
   console.log("\nGenerated Permit2 nonce:", nonce.toString());
 
   // Step 4: Build Permit2 EIP-712 message manually
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 60); // 1 hour from now
+  const deadline = BigInt(Math.floor(Date.now() / 1000) +( 60 * 10)); // 10 minutes from now
 
   const permit = {
     permitted: {
@@ -175,6 +206,14 @@ async function executePermit2SwapWithTachyon() {
     deadline: deadline,
   };
 
+  // Calculate witness data
+  const witnessData = {
+    target: quote.transaction.to as Hex,
+    callDataHash: keccak256(quote.transaction.data as Hex),
+  };
+
+  console.log("\nWitness data:", witnessData);
+
   const eip712Message = {
     domain: {
       name: "Permit2",
@@ -182,26 +221,32 @@ async function executePermit2SwapWithTachyon() {
       verifyingContract: CONTRACTS.PERMIT2 as Hex,
     },
     types: {
-      PermitTransferFrom: [
+      PermitWitnessTransferFrom: [
         { name: "permitted", type: "TokenPermissions" },
         { name: "spender", type: "address" },
         { name: "nonce", type: "uint256" },
         { name: "deadline", type: "uint256" },
+        { name: "witness", type: "Payload" },
       ],
       TokenPermissions: [
         { name: "token", type: "address" },
         { name: "amount", type: "uint256" },
       ],
+      Payload: [
+        { name: "target", type: "address" },
+        { name: "callDataHash", type: "bytes32" },
+      ],
     },
-    primaryType: "PermitTransferFrom" as const,
+    primaryType: "PermitWitnessTransferFrom" as const,
     message: {
       permitted: {
         token: sellingToken.address,
         amount: sellAmount,
       },
-      spender: CONTRACTS.PERMIT_SWAP,
+      spender: CONTRACTS.RATH_EXECUTOR,
       nonce: nonce,
       deadline: deadline,
+      witness: witnessData,
     },
   };
 
@@ -209,20 +254,20 @@ async function executePermit2SwapWithTachyon() {
   const signature = await walletClient.signTypedData(eip712Message);
   console.log("Permit2 signature obtained");
 
-  // Step 5: Encode call to permit2AndSwap function
+  // Step 5: Encode call to rathExecutePermit2WithWitness function
 
   const transactionData = encodeFunctionData({
-    abi: permit2SwapAbi,
-    functionName: "permit2AndSwap",
+    abi: rathExecutorAbi,
+    functionName: "rathExecutePermit2WithWitness",
     args: [
       permit,
-      signature,
       owner,
       quote.transaction.data as Hex, // swapData from 0x API
+      signature,
     ],
   });
 
-  console.log("\nTransaction data prepared for permit2AndSwap");
+  console.log("\nTransaction data prepared for rathExecutePermit2WithWitness");
 
   // Step 6: Initialize Tachyon
   const tachyon = new Tachyon({
@@ -231,12 +276,12 @@ async function executePermit2SwapWithTachyon() {
 
   // Step 7: Relay transaction via Tachyon
   console.log("\nRelaying transaction via Tachyon...");
-  console.log("Target:", CONTRACTS.PERMIT_SWAP);
+  console.log("Target:", CONTRACTS.RATH_EXECUTOR);
   console.log("Gas limit:", quote.transaction.gas);
 
   const txId = await tachyon.relay({
     chainId: ChainId.BASE,
-    to: CONTRACTS.PERMIT_SWAP, // Call PermitSwap contract
+    to: CONTRACTS.RATH_EXECUTOR, // Call PermitSwap contract
     value: "0", // No ETH value needed
     gasLimit: "1000000",
     transactionType: "flash-blocks",

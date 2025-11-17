@@ -28,13 +28,13 @@ const CONTRACTS = {
   WETH: "0x4200000000000000000000000000000000000006",
   USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   PERMIT2: "0x000000000022D473030F116dDEE9F6B43aC78BA3", // Uniswap Permit2
-  PERMIT_SWAP: "0xb37db159A4B53c4a26ac4A398f4d34B51Ca9302b", // PermitSwap contract
+  RATH_EXECUTOR: "0x36b7e6e7fbbe07d3cf91203fb47cd436f65e6e97", // PermitSwap contract
 } as const;
 
 // ABI for permit2AndSwap function
-const permit2SwapAbi = [
+const rathExecutorAbi = [
   {
-    name: "permit2AndSwap",
+    name: "rathExecutePermit2",
     type: "function",
     stateMutability: "nonpayable",
     inputs: [
@@ -54,9 +54,9 @@ const permit2SwapAbi = [
           { name: "deadline", type: "uint256" },
         ],
       },
+      { name: "from", type: "address" },
       { name: "signature", type: "bytes" },
-      { name: "owner", type: "address" },
-      { name: "swapData", type: "bytes" },
+      { name: "callData", type: "bytes" },
     ],
     outputs: [],
   },
@@ -199,7 +199,7 @@ async function executePermit2SwapWithTachyon() {
         token: sellingToken.address,
         amount: sellAmount,
       },
-      spender: CONTRACTS.PERMIT_SWAP,
+      spender: CONTRACTS.RATH_EXECUTOR,
       nonce: nonce,
       deadline: deadline,
     },
@@ -212,12 +212,12 @@ async function executePermit2SwapWithTachyon() {
   // Step 5: Encode call to permit2AndSwap function
 
   const transactionData = encodeFunctionData({
-    abi: permit2SwapAbi,
-    functionName: "permit2AndSwap",
+    abi: rathExecutorAbi,
+    functionName: "rathExecutePermit2",
     args: [
       permit,
-      signature,
       owner,
+      signature,
       quote.transaction.data as Hex, // swapData from 0x API
     ],
   });
@@ -231,12 +231,12 @@ async function executePermit2SwapWithTachyon() {
 
   // Step 7: Relay transaction via Tachyon
   console.log("\nRelaying transaction via Tachyon...");
-  console.log("Target:", CONTRACTS.PERMIT_SWAP);
+  console.log("Target:", CONTRACTS.RATH_EXECUTOR);
   console.log("Gas limit:", quote.transaction.gas);
 
   const txId = await tachyon.relay({
     chainId: ChainId.BASE,
-    to: CONTRACTS.PERMIT_SWAP, // Call PermitSwap contract
+    to: CONTRACTS.RATH_EXECUTOR, // Call PermitSwap contract
     value: "0", // No ETH value needed
     gasLimit: "1000000",
     transactionType: "flash-blocks",
