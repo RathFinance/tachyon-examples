@@ -31,7 +31,7 @@ const CONTRACTS = {
   RATH_EXECUTOR: "0x36b7e6e7fbbe07d3cf91203fb47cd436f65e6e97", // Rath Executor contract
 } as const;
 
-// ABI for permit2AndSwap function
+// ABI for rath executor
 const rathExecutorAbi = [
   {
     name: "rathExecutePermit2",
