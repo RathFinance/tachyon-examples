@@ -5,14 +5,12 @@ import {
   concat,
   pad,
   numberToHex,
-  hexToBytes,
   createPublicClient,
   encodePacked,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { Tachyon } from "@rathfi/tachyon";
-import { ethers } from "ethers";
 import {
   entryPoint07Abi,
   entryPoint07Address,
@@ -48,7 +46,7 @@ const beneficiary = "0x4C16955d8A0DcB2e7826d50f4114990c787b21E7";
 const helloTachyonAddress = "0xA7A833e6641D7901F30EaD6f27d4Ee2C9bb670a7";
 
 // Set to true if the address is already delegated to skip authorization
-// AFTER MAKING ONE TX MAKE IT FALSE 
+// AFTER MAKING ONE TX MAKE IT FALSE
 const isAlreadyDelegated = true;
 
 async function createEIP7702Transaction() {
@@ -77,51 +75,49 @@ async function createEIP7702Transaction() {
     console.log("Skipping delegation - address already delegated");
   }
 
-  // Encode the sayHello call
-  const abi = ["function sayHello(string message)"];
-  const iface = new ethers.Interface(abi);
-  const sayHelloCallData = iface.encodeFunctionData("sayHello", [
-    "Hello from Tachyon!",
-  ]);
+  const sayHelloCallData = encodeFunctionData({
+    abi: ["function sayHello(string message)"],
+    functionName: "sayHello",
+    args: ["Hello from Tachyon!"],
+  });
 
   // Create UserOperation callData
+  const encoded = encodePacked(
+    ["address", "uint256", "bytes"],
+    [
+      helloTachyonAddress as `0x${string}`,
+      BigInt(0),
+      sayHelloCallData as `0x${string}`,
+    ],
+  );
 
-    const encoded = encodePacked(
-      ["address", "uint256", "bytes"],
-      [
-        helloTachyonAddress as `0x${string}`,
-        BigInt(0),
-       sayHelloCallData as `0x${string}`,
-      ],
-    );
-
-    const userOperationCallData = encodeFunctionData({
-      abi: [
-        {
-          inputs: [
-            {
-              internalType: "ExecMode",
-              name: "execMode",
-              type: "bytes32",
-            },
-            {
-              internalType: "bytes",
-              name: "executionCalldata",
-              type: "bytes",
-            },
-          ],
-          name: "execute",
-          outputs: [],
-          stateMutability: "payable",
-          type: "function",
-        },
-      ],
-      functionName: "execute",
-      args: [
-        "0x0000000000000000000000000000000000000000000000000000000000000000",
-        encoded,
-      ],
-    });
+  const userOperationCallData = encodeFunctionData({
+    abi: [
+      {
+        inputs: [
+          {
+            internalType: "ExecMode",
+            name: "execMode",
+            type: "bytes32",
+          },
+          {
+            internalType: "bytes",
+            name: "executionCalldata",
+            type: "bytes",
+          },
+        ],
+        name: "execute",
+        outputs: [],
+        stateMutability: "payable",
+        type: "function",
+      },
+    ],
+    functionName: "execute",
+    args: [
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+      encoded,
+    ],
+  });
 
   // Get nonce for the delegated address
   const nonce = await publicClient.readContract({
