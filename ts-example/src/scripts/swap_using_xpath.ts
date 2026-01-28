@@ -30,7 +30,7 @@ const CONTRACTS = {
   WETH: "0x4200000000000000000000000000000000000006",
   USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   PERMIT2: "0x000000000022D473030F116dDEE9F6B43aC78BA3", // Uniswap Permit2
-  XPATH: "0xDb4a28c28C156Ff8C487e617179672A139ccf257", // Rath Executor contract
+  XPATH: "0x737e1b401BF7a67e6b74bB393Dd62D3Bd9b37D0b", // xPath contract
 } as const;
 
 // ABI for rathExecutePermit2WithWitness function
@@ -132,7 +132,7 @@ async function executeXpathSwap() {
   );
 
   // Define swap parameters
-  const sellAmount = parseUnits("0.00001", 6);
+  const sellAmount = parseUnits("0.1", 6);
   const chainId = base.id;
 
   // Step 1: Check and approve USDC to Permit2 if needed
