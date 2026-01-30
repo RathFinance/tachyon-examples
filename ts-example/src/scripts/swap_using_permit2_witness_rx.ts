@@ -137,7 +137,7 @@ async function executePermit2SwapWithTachyon() {
   );
 
   // Define swap parameters
-  const sellAmount = parseUnits("0.00001", 6);
+  const sellAmount = parseUnits("0.2", 6);
   const chainId = base.id;
 
   // Step 1: Check and approve USDC to Permit2 if needed
