@@ -8,7 +8,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { Tachyon } from "@rathfi/tachyon";
 import * as dotenv from "dotenv";
-dotenv.config({ path: "ts-example/.env" });
+dotenv.config({ path: ".env" });
 
 console.log("Removing EIP-7702 delegation by authorizing zero address...");
 

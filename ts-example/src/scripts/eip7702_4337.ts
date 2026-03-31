@@ -7,6 +7,7 @@ import {
   numberToHex,
   createPublicClient,
   encodePacked,
+  parseAbi,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
@@ -17,7 +18,7 @@ import {
   getUserOperationHash,
 } from "viem/account-abstraction";
 import * as dotenv from "dotenv";
-dotenv.config({ path: "ts-example/.env" });
+dotenv.config({ path: ".env" });
 
 // Entry point configuration
 const entryPoint = {
@@ -76,7 +77,7 @@ async function createEIP7702Transaction() {
   }
 
   const sayHelloCallData = encodeFunctionData({
-    abi: ["function sayHello(string message)"],
+    abi: parseAbi(["function sayHello(string message)"]),
     functionName: "sayHello",
     args: ["Hello from Tachyon!"],
   });
@@ -129,8 +130,8 @@ async function createEIP7702Transaction() {
   });
 
   // Gas limits
-  const callGasLimit = BigInt(500_000);
-  const verificationGasLimit = BigInt(1_200_000);
+  const callGasLimit = BigInt(100_000);
+  const verificationGasLimit = BigInt(200_000);
   const preVerificationGas = BigInt(100_000);
 
   // Create UserOperation
@@ -208,13 +209,15 @@ async function createEIP7702Transaction() {
       userOperation.preVerificationGas) *
     BigInt(2);
 
+
   // Initialize Tachyon SDK
   const tachyon = new Tachyon({
     apiKey: process.env.TACHYON_API_KEY!,
   });
 
   // Submit transaction with authorization to EntryPoint
-  const taskId = await tachyon.relay({
+  const relayStartTime = performance.now();
+  const taskId = await tachyon.relaySync({
     chainId: base.id,
     to: entryPoint.address,
     callData: callData,
@@ -226,17 +229,30 @@ async function createEIP7702Transaction() {
           transactionType: "flash-blocks",
         }),
   });
+  const relayEndTime = performance.now();
+  console.log(`Tachyon relay took: ${(relayEndTime - relayStartTime).toFixed(2)}ms`);
 
   console.log("Task ID:", taskId);
 
-  // Wait for the transaction to be executed
-  const tx = await tachyon.waitForExecutionHash(taskId, 30_000);
-  console.log("Transaction executed:", tx);
+  // // Wait for the transaction to be executed
+  // const waitStartTime = performance.now();
+  // const tx = await tachyon.waitForExecutionHash(taskId, 30_000);
+  // const waitEndTime = performance.now();
+  // console.log(`Tachyon waitForExecutionHash took: ${(waitEndTime - waitStartTime).toFixed(2)}ms`);
+  
+  console.log("Transaction executed:", taskId);
   console.log(
     "Called sayHello via EIP-7702 delegated address through EntryPoint",
   );
+  
+  // Total timing summary
+  const totalTime = (relayEndTime - relayStartTime) 
+  console.log(`\nPerformance Summary:`);
+  console.log(`  - Relay time: ${(relayEndTime - relayStartTime).toFixed(2)}ms`);
+  // console.log(`  - Wait time: ${(waitEndTime - waitStartTime).toFixed(2)}ms`);
+  console.log(`  - Total Tachyon time: ${totalTime.toFixed(2)}ms`);
 
-  return tx;
+  return taskId;
 }
 
 createEIP7702Transaction();

@@ -14,10 +14,11 @@ import { base } from "viem/chains";
 
 // Load env vars
 dotenv();
-const { PRIVATE_KEY } = process.env;
+const { PRIVATE_KEY, XPATH_API_KEY } = process.env;
 
 // Validate requirements
 if (!PRIVATE_KEY) throw new Error("missing PRIVATE_KEY");
+if (!XPATH_API_KEY) throw new Error("missing XPATH_API_KEY");
 const GASLESS_API_URL = 'https://api.xpath.rath.fi'
 
 // Contract addresses for Base network
@@ -44,6 +45,7 @@ const walletClient = createWalletClient({
 // API headers
 const headers = {
   "Content-Type": "application/json",
+  "api-key": XPATH_API_KEY!,
 };
 
 interface QuoteResponse {
@@ -199,16 +201,15 @@ async function executeGaslessSwap() {
   console.log("-".repeat(60));
 
   const quoteParams = new URLSearchParams({
-    input_token: sellingToken.address,
-    output_token: buyingToken.address,
-    input_amount: sellAmount.toString(),
-    from_chain_id: chainId.toString(),
-    to_chain_id: chainId.toString(),
-    from: owner,
+    fromToken: sellingToken.address,
+    toToken: buyingToken.address,
+    amount: sellAmount.toString(),
+    fromChain: chainId.toString(),
+    toChain: chainId.toString(),
+    sender: owner,
     receiver: owner,
     slippage: "0.5",
-    acquisition_mode: "3", // Permit2Witness
-    deadline_minutes: "100",
+    acquisitionMode: "3", // Permit2Witness
   });
 
   const quoteUrl = `${GASLESS_API_URL}/gasless/quote?${quoteParams.toString()}`;
