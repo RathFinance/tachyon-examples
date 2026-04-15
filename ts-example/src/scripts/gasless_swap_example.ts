@@ -19,7 +19,7 @@ const { PRIVATE_KEY, XPATH_API_KEY } = process.env;
 // Validate requirements
 if (!PRIVATE_KEY) throw new Error("missing PRIVATE_KEY");
 if (!XPATH_API_KEY) throw new Error("missing XPATH_API_KEY");
-const GASLESS_API_URL = 'https://api.xpath.rath.fi'
+const GASLESS_API_URL = "https://api.xpath.rath.fi";
 
 // Contract addresses for Base network
 const CONTRACTS = {
@@ -51,46 +51,51 @@ const headers = {
 interface QuoteResponse {
   code: number;
   message: string;
-  data: {
-    quoteId: string;
-    eip712: {
-      domain: {
-        name: string;
-        chainId: string;
-        verifyingContract: Hex;
-      };
-      types: any;
-      primaryType: string;
-      message: any;
+  data: GaslessQuote[];
+}
+
+interface GaslessQuote {
+  quoteId: string;
+  eip712: {
+    domain: {
+      name: string;
+      chainId: string;
+      verifyingContract: Hex;
     };
-    nonce: string;
-    deadline: string;
-    quote: {
-      fromChainId: number;
-      toChainId: number;
-      from: string;
-      receiver: string;
-      tokenIn: {
-        address: string;
-        amount: string;
-      };
-      tokenOut: {
-        address: string;
-        amount: string;
-      };
-      amountIn: string;
-      amountInAfterFee: string;
-      amountOut: string;
-      amountOutMin: string;
-      aggregator: string;
-      aggregatorId: string;
-      acquisitionMode: number;
+    types: Record<string, Array<{ name: string; type: string }>>;
+    primaryType: string;
+    message: Record<string, unknown>;
+  };
+  nonce: string;
+  deadline: string;
+  quote: {
+    fromChain: number;
+    toChain: number;
+    sender: string;
+    receiver: string;
+    fromToken: {
+      address: string;
+      amount: string;
     };
-    fee: {
-      feeAmount: string;
-      feeUsd: number;
-      feeRecipient: string;
+    toToken: {
+      address: string;
+      amount: string;
     };
+    amountIn: string;
+    amountInAfterFee: string;
+    amountOut: string;
+    amountOutMin: string;
+    aggregator: string;
+    aggregatorId: string;
+    acquisitionMode: number;
+    routeKind: string;
+    bridgeProviders: string[];
+    bridgeCount: number;
+  };
+  fee: {
+    feeAmount: string;
+    feeUsd: number;
+    feeRecipient: string;
   };
 }
 
@@ -135,6 +140,14 @@ interface StatusResponse {
   };
 }
 
+function selectPreferredQuote(quotes: GaslessQuote[]): GaslessQuote {
+  if (quotes.length === 0) {
+    throw new Error("No gasless quote returned");
+  }
+
+  return quotes[0];
+}
+
 async function executeGaslessSwap() {
   const owner = account.address;
   const chainId = base.id;
@@ -146,28 +159,26 @@ async function executeGaslessSwap() {
 
   // Setup token contracts
   const sellingToken = getContract({
-    address: CONTRACTS.WETH,
-    abi: erc20Abi,
-    client: { public: publicClient, wallet: walletClient },
-  });
-
-  const buyingToken = getContract({
     address: CONTRACTS.USDC,
     abi: erc20Abi,
     client: { public: publicClient, wallet: walletClient },
   });
 
-  console.log(
-    `\n💱 Swapping WETH → USDC`,
-  );
+  const buyingToken = getContract({
+    address: CONTRACTS.WETH,
+    abi: erc20Abi,
+    client: { public: publicClient, wallet: walletClient },
+  });
+
+  console.log(`\n💱 Swapping USDC → WETH`);
   console.log(`   Input Token:  ${sellingToken.address}`);
   console.log(`   Output Token: ${buyingToken.address}`);
 
   // Define swap parameters
-  const sellAmount = parseUnits("0.00000632177181558", 18); // 0.00000332177181558 WETH
-  console.log(`   Sell Amount:  ${sellAmount.toString()} (0.00000332177181558 WETH)`);
+  const sellAmount = parseUnits("0.1", 6);
+  console.log(`   Sell Amount:  ${sellAmount.toString()} (0.10 USDC)`);
 
-  // Step 1: Check and approve WETH to Permit2 if needed
+  // Step 1: Check current Permit2 allowance
   console.log("\n📝 Step 1: Checking Permit2 Allowance");
   console.log("-".repeat(60));
 
@@ -179,22 +190,6 @@ async function executeGaslessSwap() {
   });
 
   console.log(`   Current allowance: ${currentAllowance.toString()}`);
-
-  if (currentAllowance < sellAmount) {
-    console.log("   ⚠️  Insufficient allowance, approving...");
-    const approveHash = await walletClient.writeContract({
-      address: sellingToken.address,
-      abi: erc20Abi,
-      functionName: "approve",
-      args: [CONTRACTS.PERMIT2, maxUint256],
-    });
-
-    console.log(`   📤 Approval tx: ${approveHash}`);
-    await publicClient.waitForTransactionReceipt({ hash: approveHash });
-    console.log("   ✅ WETH approved to Permit2!");
-  } else {
-    console.log("   ✅ WETH already approved to Permit2");
-  }
 
   // Step 2: Get quote from gasless API
   console.log("\n📊 Step 2: Fetching Gasless Quote");
@@ -231,22 +226,43 @@ async function executeGaslessSwap() {
     throw new Error(`API error: ${quoteData.message}`);
   }
 
+  const selectedQuote = selectPreferredQuote(quoteData.data);
+
   console.log("   ✅ Quote received!");
-  console.log(`   Quote ID: ${quoteData.data.quoteId}`);
-  console.log(`   Aggregator: ${quoteData.data.quote.aggregator}`);
-  console.log(`   Amount In: ${quoteData.data.quote.amountIn}`);
-  console.log(`   Amount In (after fee): ${quoteData.data.quote.amountInAfterFee}`);
-  console.log(`   Expected Out: ${quoteData.data.quote.amountOut}`);
-  console.log(`   Min Out (with slippage): ${quoteData.data.quote.amountOutMin}`);
-  console.log(`   Fee: ${quoteData.data.fee.feeAmount} ($${quoteData.data.fee.feeUsd})`);
-  console.log(`   Nonce: ${quoteData.data.nonce}`);
-  console.log(`   Deadline: ${quoteData.data.deadline}`);
+  console.log(`   Routes returned: ${quoteData.data.length}`);
+  console.log(`   Selected Quote ID: ${selectedQuote.quoteId}`);
+  console.log(`   Aggregator: ${selectedQuote.quote.aggregator}`);
+  console.log(`   Amount In: ${selectedQuote.quote.amountIn}`);
+  console.log(`   Amount In (after fee): ${selectedQuote.quote.amountInAfterFee}`);
+  console.log(`   Expected Out: ${selectedQuote.quote.amountOut}`);
+  console.log(`   Min Out (with slippage): ${selectedQuote.quote.amountOutMin}`);
+  console.log(`   Fee: ${selectedQuote.fee.feeAmount} ($${selectedQuote.fee.feeUsd})`);
+  console.log(`   Nonce: ${selectedQuote.nonce}`);
+  console.log(`   Deadline: ${selectedQuote.deadline}`);
+
+  const requiredPermit2Allowance = BigInt(selectedQuote.quote.amountIn);
+
+  if (currentAllowance < requiredPermit2Allowance) {
+    console.log("   ⚠️  Existing approval is below quote amount, approving max...");
+    const approveHash = await walletClient.writeContract({
+      address: sellingToken.address,
+      abi: erc20Abi,
+      functionName: "approve",
+      args: [CONTRACTS.PERMIT2, maxUint256],
+    });
+
+    console.log(`   📤 Approval tx: ${approveHash}`);
+    await publicClient.waitForTransactionReceipt({ hash: approveHash });
+    console.log("   ✅ USDC approved to Permit2!");
+  } else {
+    console.log("   ✅ USDC already approved to Permit2 for the selected quote");
+  }
 
   // Step 3: Sign EIP712 data
   console.log("\n✍️  Step 3: Signing EIP712 Permit2 Data");
   console.log("-".repeat(60));
 
-  const eip712Data = quoteData.data.eip712;
+  const eip712Data = selectedQuote.eip712;
   console.log(`   Domain: ${eip712Data.domain.name}`);
   console.log(`   Primary Type: ${eip712Data.primaryType}`);
   console.log(`   Signing...`);
@@ -275,7 +291,7 @@ async function executeGaslessSwap() {
     method: "POST",
     headers,
     body: JSON.stringify({
-      quoteId: quoteData.data.quoteId,
+      quoteId: selectedQuote.quoteId,
       signature: signature,
     }),
   });
